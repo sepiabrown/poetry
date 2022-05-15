@@ -303,15 +303,22 @@ class LegacyRepository(PyPiRepository):
         Note that this will be cached so the subsequent operations
         should be much faster.
         """
+        print("legacy_rep_package0")
         try:
             index = self._packages.index(Package(name, version, version))
+            print("legacy_rep_package1")
 
             return self._packages[index]
         except ValueError:
+            print("legacy_rep_package2")
             package = super().package(name, version, extras)
+            print("legacy_rep_package3")
             package._source_type = "legacy"
+            print("legacy_rep_package4")
             package._source_url = self._url
+            print("legacy_rep_package5")
             package._source_reference = self.name
+            print("legacy_rep_package6")
 
             return package
 
