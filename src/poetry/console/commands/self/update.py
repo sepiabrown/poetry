@@ -84,6 +84,7 @@ class SelfUpdateCommand(Command):
 
         pool = Pool()
         pool.add_repository(PyPiRepository())
+        print("update_initiated00000000000000")
 
         return pool
 
@@ -92,16 +93,19 @@ class SelfUpdateCommand(Command):
         from poetry.core.semver.version import Version
 
         from poetry.__version__ import __version__
+        print("update_handle0")
 
         version = self.argument("version")
         if not version:
             version = ">=" + __version__
 
+        print("update_handle1")
         repo = self.pool.repositories[0]
-        print("update_handle")
+        print("update_handle2")
         packages = repo.find_packages(
             Dependency("poetry", version, allows_prereleases=self.option("preview"))
         )
+        print("update_handle3")
         if not packages:
             self.line("No release found for the specified version")
             return 1
