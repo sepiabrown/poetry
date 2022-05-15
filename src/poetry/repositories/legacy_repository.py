@@ -5,6 +5,7 @@ import hashlib
 import re
 import urllib.parse
 import warnings
+import platform
 
 from collections import defaultdict
 from html import unescape
@@ -124,9 +125,9 @@ class Page:
         print(link.filename)
         os_file_re = re.compile(r"any|linux")
         m = wheel_file_re.match(link.filename)
+        print(os_file_re.match(link.filename))
         print(m.group("plat"))
         print(platform.system().lower())
-        print(os_file_re.match(link.filename))
         
         if m:
             version = m.group("ver")
