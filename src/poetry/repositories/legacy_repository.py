@@ -279,7 +279,7 @@ class LegacyRepository(PyPiRepository):
                 packages.append(package)
 
             self._log(
-                f"{len(packages)} packages found for {dependency.name} {constraint!s}",
+                f"{len(packages)} packages found for legacy {dependency.name} {constraint!s}",
                 level="debug",
             )
 
