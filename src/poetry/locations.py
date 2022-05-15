@@ -13,7 +13,7 @@ CACHE_DIR = user_cache_dir("pypoetry")
 DATA_DIR = user_data_dir("pypoetry")
 CONFIG_DIR = user_config_dir("pypoetry")
 
-REPOSITORY_CACHE_DIR = Path(CACHE_DIR) / "cache" / "repositories"
+REPOSITORY_CACHE_DIR = Path(CACHE_DIR) / "cache" / "repositories_test"
 
 
 def data_dir() -> Path:

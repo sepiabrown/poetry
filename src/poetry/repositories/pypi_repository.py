@@ -60,13 +60,13 @@ class PyPiRepository(RemoteRepository):
         self._disable_cache = disable_cache
         self._fallback = fallback
 
-        release_cache_dir = REPOSITORY_CACHE_DIR / "pypi"
+        release_cache_dir = REPOSITORY_CACHE_DIR / "pypi_test"
         self._cache = CacheManager(
             {
                 "default": "releases",
                 "serializer": "json",
                 "stores": {
-                    "releases": {"driver": "file", "path": print("pypi_init1") or str(release_cache_dir)},
+                    "releases": {"driver": "file", "path": str(release_cache_dir)},
                     "packages": {"driver": "dict"},
                 },
             }
