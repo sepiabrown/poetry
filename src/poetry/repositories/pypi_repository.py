@@ -224,6 +224,8 @@ class PyPiRepository(RemoteRepository):
         """
         from poetry.inspection.info import PackageInfo
         print("pypi_get_release_info0")
+        print(name)
+        print(version)
 
         if self._disable_cache:
             print("pypi_get_release_info1")
@@ -265,6 +267,7 @@ class PyPiRepository(RemoteRepository):
 
     def _get_release_info(self, name: str, version: str) -> dict:
         from poetry.inspection.info import PackageInfo
+        print("pypi__get_release_info0")
 
         self._log(f"Getting info for {name} ({version}) from PyPI", "debug")
 
