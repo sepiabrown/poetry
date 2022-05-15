@@ -67,6 +67,7 @@ class VersionSolver:
         or raises an error if no such set is available.
         """
         start = time.time()
+        print("version_solver_solve_starttime")
         root_dependency = Dependency(self._root.name, self._root.version)
         root_dependency.is_root = True
 
@@ -344,6 +345,7 @@ class VersionSolver:
                 return not dependency.marker.is_any(), 1
 
             try:
+                print("version_solver_get_min")
                 return (
                     not dependency.marker.is_any(),
                     len(self._provider.search_for(dependency)),
@@ -351,6 +353,7 @@ class VersionSolver:
             except ValueError:
                 return not dependency.marker.is_any(), 0
 
+        print("version_solver_choose_package_version")
         if len(unsatisfied) == 1:
             dependency = unsatisfied[0]
         else:
@@ -359,6 +362,7 @@ class VersionSolver:
         locked = self._get_locked(dependency)
         if locked is None or not dependency.constraint.allows(locked.version):
             try:
+                print("version_solver_locked")
                 packages = self._provider.search_for(dependency)
             except ValueError as e:
                 self._add_incompatibility(

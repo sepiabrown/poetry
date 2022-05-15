@@ -150,8 +150,9 @@ class Provider:
         elif dependency.is_url():
             packages = self.search_for_url(dependency)
         else:
-            print("provider_search_for")
+            print("provider_search_for1")
             packages = self._pool.find_packages(dependency)
+            print("provider_search_for2")
 
             packages.sort(
                 key=lambda p: (
