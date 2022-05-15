@@ -144,7 +144,10 @@ class Pool(BaseRepository):
         if repository is not None and not self._ignore_repository_names:
             print("pool_package2")
             with suppress(PackageNotFound):
-                return self.repository(repository).package(name, version, extras=extras)
+                testtesttest = self.repository(repository).package(name, version, extras=extras)
+                print("pool_package2_5")
+                print(testtesttest)
+                return testtesttest
         else:
             print("pool_package3")
             for repo in self._repositories:
@@ -173,8 +176,6 @@ class Pool(BaseRepository):
             raise ValueError(f'Repository "{repository}" does not exist.')
 
         if repository is not None and not self._ignore_repository_names:
-            print(repository)
-            print(f'testing "{repository}"')
             print("pool_self_ignore")
             return self.repository(repository).find_packages(dependency)
 

@@ -79,7 +79,9 @@ class VersionSolver:
             next = self._root.name
             while next is not None:
                 self._propagate(next)
+                print("version_solver1")
                 next = self._choose_package_version()
+                print("version_solver2")
 
             return self._result()
         except Exception:
@@ -399,7 +401,9 @@ class VersionSolver:
             
         print("vs_2")
 
+        print("1111111111111111111111111111111111111111halted")
         package = self._provider.complete_package(package)
+        print("2222222222222222222222222222222222222222halt_ended")
 
         print("vc_3")
         conflict = False

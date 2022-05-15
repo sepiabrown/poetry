@@ -452,6 +452,7 @@ class Provider:
             "git",
         }:
             print("provider_comp_pack2")
+            print("111111111111111111halted")
             package = DependencyPackage(
                 package.dependency,
                 self._pool.package(
@@ -462,6 +463,7 @@ class Provider:
                 ),
             )
             print("provider_comp_pack22")
+            print("222222222222222222halt_end")
             requires = package.requires
         else:
             print("provider_comp_pack3")
