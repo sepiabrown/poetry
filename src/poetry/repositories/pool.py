@@ -56,11 +56,10 @@ class Pool(BaseRepository):
             name = name.lower()
 
         if name in self._lookup:
-            print("repositories_name_start")
-            print(name)
-            print("repositories_name_end")
-            print(self._repositories[self._lookup[name]])
-            return self._repositories[self._lookup[name]]
+            print("pool_repository1")
+            testtt = self._repositories[self._lookup[name]]
+            print("pool_repository2")
+            return testtt
 
         raise ValueError(f'Repository "{name}" does not exist.')
 
