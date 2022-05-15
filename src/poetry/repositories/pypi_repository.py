@@ -61,6 +61,9 @@ class PyPiRepository(RemoteRepository):
         self._fallback = fallback
 
         release_cache_dir = REPOSITORY_CACHE_DIR / "pypi_test"
+        print(release_cache_dir)
+        print(str(release_cache_dir))
+        print(str(release_cache_dir/ "_http_test"))
         self._cache = CacheManager(
             {
                 "default": "releases",
