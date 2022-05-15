@@ -23,6 +23,7 @@ class DependencyPackage:
         return self._package
 
     def clone(self) -> DependencyPackage:
+        print("dependency_package_clone")
         return self.__class__(self._dependency, self._package.clone())
 
     def with_features(self, features: list[str]) -> DependencyPackage:

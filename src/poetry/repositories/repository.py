@@ -30,9 +30,11 @@ class Repository(BaseRepository):
     def package(
         self, name: str, version: str, extras: list[str] | None = None
     ) -> Package:
+        print("repository_package0")
         name = name.lower()
 
         for package in self.packages:
+            print("repository_package1")
             if name == package.name and package.version.text == version:
                 return package.clone()
 
