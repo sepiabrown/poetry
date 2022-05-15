@@ -401,6 +401,7 @@ class VersionSolver:
 
         package = self._provider.complete_package(package)
 
+        print("vc_3")
         conflict = False
         for incompatibility in self._provider.incompatibilities_for(package):
             self._add_incompatibility(incompatibility)
@@ -415,7 +416,7 @@ class VersionSolver:
                 or self._solution.satisfies(term)
                 for term in incompatibility.terms
             )
-        print("vc_3")
+        print("vc_4")
 
         if not conflict:
             self._solution.decide(package)

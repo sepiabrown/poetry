@@ -442,6 +442,7 @@ class Provider:
 
     def complete_package(self, package: DependencyPackage) -> DependencyPackage:
         if package.is_root():
+            print("provider_comp_pack1")
             package = package.clone()
             requires = package.all_requires
         elif not package.is_root() and package.source_type not in {
@@ -450,6 +451,7 @@ class Provider:
             "url",
             "git",
         }:
+            print("provider_comp_pack2")
             package = DependencyPackage(
                 package.dependency,
                 self._pool.package(
@@ -461,22 +463,29 @@ class Provider:
             )
             requires = package.requires
         else:
+            print("provider_comp_pack3")
             requires = package.requires
 
         if self._load_deferred:
+            print("provider_load1")
             # Retrieving constraints for deferred dependencies
             for r in requires:
                 if r.is_directory():
+                    print("provider_load2")
                     self.search_for_directory(r)
                 elif r.is_file():
+                    print("provider_load3")
                     self.search_for_file(r)
                 elif r.is_vcs():
+                    print("provider_load4")
                     self.search_for_vcs(r)
                 elif r.is_url():
+                    print("provider_load5")
                     self.search_for_url(r)
 
         optional_dependencies = []
         _dependencies = []
+        print("provider_0")
 
         # If some extras/features were required, we need to
         # add a special dependency representing the base package
@@ -491,6 +500,7 @@ class Provider:
             package = package.with_features(list(package.dependency.extras))
             _dependencies.append(package.without_features().to_dependency())
 
+        print("provider_1")
         for dep in requires:
             if not self._python_constraint.allows_any(dep.python_constraint):
                 continue
@@ -512,6 +522,7 @@ class Provider:
 
             _dependencies.append(dep)
 
+        print("provider_2")
         overrides = self._overrides.get(package, {})
         dependencies = []
         overridden = []
@@ -545,6 +556,7 @@ class Provider:
         # An example of this is:
         #   - pypiwin32 (220); sys_platform == "win32" and python_version >= "3.6"
         #   - pypiwin32 (219); sys_platform == "win32" and python_version < "3.6"
+        print("provider_3")
         duplicates: dict[str, list[Dependency]] = {}
         for dep in dependencies:
             if dep.complete_name not in duplicates:
@@ -553,6 +565,7 @@ class Provider:
             duplicates[dep.complete_name].append(dep)
 
         dependencies = []
+        print("provider_4")
         for dep_name, deps in duplicates.items():
             if len(deps) == 1:
                 dependencies.append(deps[0])
@@ -688,6 +701,7 @@ class Provider:
 
             raise OverrideNeeded(*overrides)
 
+        print("provider_5")
         # Modifying dependencies as needed
         clean_dependencies = []
         for dep in dependencies:
@@ -720,9 +734,11 @@ class Provider:
             package.dependency, package.with_dependency_groups([], only=True)
         )
 
+        print("provider_6")
         for dep in clean_dependencies:
             package.add_dependency(dep)
 
+        print("provider_end")
         return package
 
     def debug(self, message: str, depth: int = 0) -> None:
