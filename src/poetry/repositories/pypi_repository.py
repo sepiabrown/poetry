@@ -158,7 +158,10 @@ class PyPiRepository(RemoteRepository):
         version: str,
         extras: (list | None) = None,
     ) -> Package:
-        return self.get_release_info(name, version).to_package(name=name, extras=extras)
+        print("pypi_package0")
+        testttt = self.get_release_info(name, version).to_package(name=name, extras=extras)
+        print("pypi_package1")
+        return testttt
 
     def search(self, query: str) -> list[Package]:
         results = []
@@ -220,16 +223,20 @@ class PyPiRepository(RemoteRepository):
         or retrieved from the remote server.
         """
         from poetry.inspection.info import PackageInfo
+        print("pypi_get_release_info0")
 
         if self._disable_cache:
+            print("pypi_get_release_info1")
             return PackageInfo.load(self._get_release_info(name, version))
 
         cached = self._cache.remember_forever(
             f"{name}:{version}", lambda: self._get_release_info(name, version)
         )
 
+        print("pypi_get_release_info2")
         cache_version = cached.get("_cache_version", "0.0.0")
         if parse_constraint(cache_version) != self.CACHE_VERSION:
+            print("pypi_get_release_info3")
             # The cache must be updated
             self._log(
                 f"The cache for {name} {version} is outdated. Refreshing.",
@@ -239,7 +246,10 @@ class PyPiRepository(RemoteRepository):
 
             self._cache.forever(f"{name}:{version}", cached)
 
-        return PackageInfo.load(cached)
+        print("pypi_get_release_info4")
+        testttttt = PackageInfo.load(cached)
+        print("pypi_get_release_info5")
+        return testttttt
 
     def find_links_for_package(self, package: Package) -> list[Link]:
         json_data = self._get(f"pypi/{package.name}/{package.version}/json")
