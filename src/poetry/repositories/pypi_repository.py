@@ -333,6 +333,7 @@ class PyPiRepository(RemoteRepository):
     def _get_info_from_urls(self, urls: dict[str, list[str]]) -> PackageInfo:
         # Checking wheels first as they are more likely to hold
         # the necessary information
+        print("test00000000000000000")
         if "bdist_wheel" in urls:
             # Check for a universal wheel
             wheels = urls["bdist_wheel"]
