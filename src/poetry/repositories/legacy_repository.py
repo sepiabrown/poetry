@@ -311,6 +311,7 @@ class LegacyRepository(PyPiRepository):
             return self._packages[index]
         except ValueError:
             print("legacy_rep_package2")
+            print(super())
             package = super().package(name, version, extras)
             print("legacy_rep_package3")
             package._source_type = "legacy"
