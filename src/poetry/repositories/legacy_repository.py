@@ -331,10 +331,14 @@ class LegacyRepository(PyPiRepository):
         return list(page.links_for_version(package.version))
 
     def _get_release_info(self, name: str, version: str) -> dict:
+        print("legacy__get_release_info0")
         page = self._get_page(f"/{canonicalize_name(name).replace('.', '-')}/")
+
+        print("legacy__get_release_info1")
         if page is None:
             raise PackageNotFound(f'No package named "{name}"')
 
+        print("legacy__get_release_info2")
         data = PackageInfo(
             name=name,
             version=version,
@@ -346,6 +350,7 @@ class LegacyRepository(PyPiRepository):
             cache_version=str(self.CACHE_VERSION),
         )
 
+        print("legacy__get_release_info3")
         links = list(page.links_for_version(Version.parse(version)))
         if not links:
             raise PackageNotFound(
@@ -354,6 +359,7 @@ class LegacyRepository(PyPiRepository):
             )
         urls = defaultdict(list)
         files = []
+        print("legacy__get_release_info4")
         for link in links:
             if link.is_wheel:
                 urls["bdist_wheel"].append(link.url)
@@ -364,6 +370,7 @@ class LegacyRepository(PyPiRepository):
 
             file_hash = f"{link.hash_name}:{link.hash}" if link.hash else None
 
+            print("legacy__get_release_info5")
             if not link.hash or (
                 link.hash_name not in ("sha256", "sha384", "sha512")
                 and hasattr(hashlib, link.hash_name)
