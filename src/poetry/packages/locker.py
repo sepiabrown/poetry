@@ -367,6 +367,7 @@ class Locker:
         selected = []
         for dependency in project_requires:
             try:
+                print("locker_project_requires")
                 package = repository.find_packages(dependency=dependency)[0]
             except IndexError:
                 continue
@@ -385,6 +386,7 @@ class Locker:
             with_nested=True,
         ):
             try:
+                print("locker_get_project")
                 package = repository.find_packages(dependency=dependency)[0]
             except IndexError:
                 continue
