@@ -276,6 +276,7 @@ class PyPiRepository(RemoteRepository):
         sys.stdout.write("pypi__get_release_info0_1")
 
         self._log(f"Getting info for {name} ({version}) from PyPI", "debug")
+        exit(1)
 
         json_data = self._get(f"pypi/{name}/{version}/json")
         if json_data is None:
