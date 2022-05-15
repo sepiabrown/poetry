@@ -59,6 +59,7 @@ class Pool(BaseRepository):
             print("repositories_name_start")
             print(name)
             print("repositories_name_end")
+            print(self._repositories[self._lookup[name]])
             return self._repositories[self._lookup[name]]
 
         raise ValueError(f'Repository "{name}" does not exist.')
