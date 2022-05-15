@@ -164,6 +164,7 @@ class PyPiRepository(RemoteRepository):
         extras: (list | None) = None,
     ) -> Package:
         print("pypi_package0")
+        print(self._base_url + f"pypi/{package.name}/{package.version}/json")
         testttt = self.get_release_info(name, version).to_package(name=name, extras=extras)
         print("pypi_package1")
         return testttt
