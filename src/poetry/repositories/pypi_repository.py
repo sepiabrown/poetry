@@ -52,6 +52,8 @@ class PyPiRepository(RemoteRepository):
         disable_cache: bool = False,
         fallback: bool = True,
     ) -> None:
+        print("pypi_init0")
+        print(url)
         super().__init__(url.rstrip("/") + "/simple/")
 
         self._base_url = url
@@ -64,7 +66,7 @@ class PyPiRepository(RemoteRepository):
                 "default": "releases",
                 "serializer": "json",
                 "stores": {
-                    "releases": {"driver": "file", "path": str(release_cache_dir)},
+                    "releases": {"driver": "file", "path": print("pypi_init1") or str(release_cache_dir)},
                     "packages": {"driver": "dict"},
                 },
             }
@@ -269,8 +271,8 @@ class PyPiRepository(RemoteRepository):
         return links
 
     def _get_release_info(self, name: str, version: str) -> dict:
-        from poetry.inspection.info import PackageInfo
         print("pypi__get_release_info0")
+        from poetry.inspection.info import PackageInfo
         sys.stdout.write("pypi__get_release_info0_1")
 
         self._log(f"Getting info for {name} ({version}) from PyPI", "debug")
