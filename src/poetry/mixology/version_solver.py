@@ -362,14 +362,15 @@ class VersionSolver:
         locked = self._get_locked(dependency)
         if locked is None or not dependency.constraint.allows(locked.version):
             try:
-                print("version_solver_locked")
+                print("version_solver_locked1")
                 packages = self._provider.search_for(dependency)
+                print("version_solver_locked2")
             except ValueError as e:
                 self._add_incompatibility(
                     Incompatibility([Term(dependency, True)], PackageNotFoundCause(e))
                 )
                 return dependency.complete_name
-
+            print("vs_0")
             package = None
             if dependency.name not in self._use_latest:
                 # prefer locked version of compatible (not exact same) dependency;
@@ -390,10 +391,13 @@ class VersionSolver:
                 self._add_incompatibility(
                     Incompatibility([Term(dependency, True)], NoVersionsCause())
                 )
+                print("vc_1")
 
                 return dependency.complete_name
         else:
             package = locked
+            
+        print("vs_2")
 
         package = self._provider.complete_package(package)
 
@@ -411,12 +415,14 @@ class VersionSolver:
                 or self._solution.satisfies(term)
                 for term in incompatibility.terms
             )
+        print("vc_3")
 
         if not conflict:
             self._solution.decide(package)
             self._log(
                 f"selecting {package.complete_name} ({package.full_pretty_version})"
             )
+        print("vc_4")
 
         return dependency.complete_name
 
