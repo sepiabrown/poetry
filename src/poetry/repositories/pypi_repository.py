@@ -231,8 +231,11 @@ class PyPiRepository(RemoteRepository):
             print("pypi_get_release_info1")
             return PackageInfo.load(self._get_release_info(name, version))
 
-        cached = self._cache.remember_forever(
-            f"{name}:{version}", lambda: self._get_release_info(name, version)
+        print("pypi_get_release_info0_1")
+        cache1 = self._cache
+        print("pypi_get_release_info0_2")
+        cached = cache1.remember_forever(
+            f"{name}:{version}", lambda: print("pypi_get_release_info0_3") or self._get_release_info(name, version)
         )
 
         print("pypi_get_release_info2")
@@ -268,6 +271,7 @@ class PyPiRepository(RemoteRepository):
     def _get_release_info(self, name: str, version: str) -> dict:
         from poetry.inspection.info import PackageInfo
         print("pypi__get_release_info0")
+        sys.stdout.write("pypi__get_release_info0_1")
 
         self._log(f"Getting info for {name} ({version}) from PyPI", "debug")
 
