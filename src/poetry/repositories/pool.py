@@ -165,10 +165,12 @@ class Pool(BaseRepository):
             raise ValueError(f'Repository "{repository}" does not exist.')
 
         if repository is not None and not self._ignore_repository_names:
+            print("pool_self_ignore")
             return self.repository(repository).find_packages(dependency)
 
         packages = []
         for repo in self._repositories:
+            print("pool_self_repositories")
             packages += repo.find_packages(dependency)
 
         return packages
