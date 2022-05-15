@@ -125,7 +125,9 @@ class Pool(BaseRepository):
     def package(
         self, name: str, version: str, extras: list[str] = None, repository: str = None
     ) -> Package:
+        print("pool_package0")
         if repository is not None:
+            print("pool_package1")
             repository = repository.lower()
 
         if (
@@ -136,9 +138,11 @@ class Pool(BaseRepository):
             raise ValueError(f'Repository "{repository}" does not exist.')
 
         if repository is not None and not self._ignore_repository_names:
+            print("pool_package2")
             with suppress(PackageNotFound):
                 return self.repository(repository).package(name, version, extras=extras)
         else:
+            print("pool_package3")
             for repo in self._repositories:
                 try:
                     package = repo.package(name, version, extras=extras)

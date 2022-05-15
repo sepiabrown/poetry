@@ -461,6 +461,7 @@ class Provider:
                     repository=package.dependency.source_name,
                 ),
             )
+            print("provider_comp_pack22")
             requires = package.requires
         else:
             print("provider_comp_pack3")
