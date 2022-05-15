@@ -98,6 +98,7 @@ class SelfUpdateCommand(Command):
             version = ">=" + __version__
 
         repo = self.pool.repositories[0]
+        print("update_handle")
         packages = repo.find_packages(
             Dependency("poetry", version, allows_prereleases=self.option("preview"))
         )
