@@ -106,6 +106,10 @@ class Page:
         for anchor in self._parsed.findall(".//a"):
             if anchor.get("href"):
                 href = anchor.get("href")
+                print("*****************************")
+                print(href)
+                print(self._url)
+                print("*****************************")
                 url = self.clean_link(urllib.parse.urljoin(self._url, href))
                 print("legacy_rep_Page_links")
                 print(url)
