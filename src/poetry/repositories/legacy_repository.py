@@ -5,6 +5,7 @@ import hashlib
 import re
 import urllib.parse
 import warnings
+import platform
 
 from collections import defaultdict
 from html import unescape
