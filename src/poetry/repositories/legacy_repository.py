@@ -120,7 +120,12 @@ class Page:
                 yield link
 
     def link_version(self, link: Link) -> Version | None:
+        os_file_re = re.compile(r"any|linux")
         m = wheel_file_re.match(link.filename)
+        if not bool(os_file_re.search(m.group("plat"))) and platform.system().lower() == "linux":
+            print("Doesn't Match OS")
+            return None
+        print("Match OS")
         if m:
             version = m.group("ver")
         else:
