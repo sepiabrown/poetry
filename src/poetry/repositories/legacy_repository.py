@@ -6,6 +6,7 @@ import re
 import urllib.parse
 import warnings
 import platform
+import sys
 
 from collections import defaultdict
 from html import unescape
@@ -67,8 +68,8 @@ class Page:
             url += "/"
 
         self._url = url
-        print("legacy_rep_Class_Page_init_self_url0")
-        print(self._url)
+        #print("legacy_rep_Class_Page_init_self_url0")
+        #print(self._url)
         encoding = None
         if headers and "Content-Type" in headers:
             content_type, params = cgi.parse_header(headers["Content-Type"])
@@ -106,13 +107,13 @@ class Page:
         for anchor in self._parsed.findall(".//a"):
             if anchor.get("href"):
                 href = anchor.get("href")
-                print("*****************************")
-                print(href)
-                print(self._url)
-                print("*****************************")
+                #print("*****************************")
+                #print(href)
+                #print(self._url)
+                #print("*****************************")
                 url = self.clean_link(urllib.parse.urljoin(self._url, href))
-                print("legacy_rep_Page_links")
-                print(url)
+                #print("legacy_rep_Page_links")
+                #print(url)
                 pyrequire = anchor.get("data-requires-python")
                 pyrequire = unescape(pyrequire) if pyrequire else None
 
@@ -135,6 +136,12 @@ class Page:
             print("Doesn't Match OS")
             return None
         print("Match OS")
+        print("cp"+str(sys.version_info[0])+str(sys.version_info[1]))
+        print(m.group("pyver"))
+        if "cp"+str(sys.version_info[0])+str(sys.version_info[1]) != m.group("pyver") :
+            print("Doesn't Match Python version")
+            return None
+        print("Match Python version")
         if m:
             version = m.group("ver")
         else:
@@ -179,8 +186,8 @@ class LegacyRepository(PyPiRepository):
         self._packages = []
         self._name = name
         self._url = url.rstrip("/")
-        print("legacy_rep_legacyrep_init0")
-        print(self._url)
+        #print("legacy_rep_legacyrep_init0")
+        #print(self._url)
         self._client_cert = client_cert
         self._cert = cert
         self._cache_dir = REPOSITORY_CACHE_DIR / name
@@ -327,8 +334,8 @@ class LegacyRepository(PyPiRepository):
             package = super().package(name, version, extras)
             package._source_type = "legacy"
             package._source_url = self._url
-            print("legacy_rep_legacyrep_package0")
-            print(self.url)
+            #print("legacy_rep_legacyrep_package0")
+            #print(self.url)
             package._source_reference = self.name
 
             return package
@@ -363,9 +370,9 @@ class LegacyRepository(PyPiRepository):
                 f' "{version}"'
             )
         urls = defaultdict(list)
-        print("legacy_rep__getrelease_info1")
-        print(urls)
-        print(links)
+        #print("legacy_rep__getrelease_info1")
+        #print(urls)
+        #print(links)
         files = []
         for link in links:
             if link.is_wheel:
@@ -383,15 +390,15 @@ class LegacyRepository(PyPiRepository):
             ):
                 with temporary_directory() as temp_dir:
                     filepath = Path(temp_dir) / link.filename
-                    print("legacy_rep__getrelease_info2")
-                    print(link.url)
-                    print(str(filepath))
+                    #print("legacy_rep__getrelease_info2")
+                    #print(link.url)
+                    #print(str(filepath))
                     self._download(link.url, str(filepath))
 
                     known_hash = (
                         getattr(hashlib, link.hash_name)() if link.hash_name else None
                     )
-                    print(known_hash)
+                    #print(known_hash)
                     required_hash = hashlib.sha256()
 
                     chunksize = 4096
@@ -421,8 +428,8 @@ class LegacyRepository(PyPiRepository):
 
     def _get_page(self, endpoint: str) -> Page | None:
         url = self._url + endpoint
-        print("legacy_rep__get_page0")
-        print(url)
+        #print("legacy_rep__get_page0")
+        #print(url)
         try:
             response = self.session.get(url)
             if response.status_code in (401, 403):
@@ -446,6 +453,6 @@ class LegacyRepository(PyPiRepository):
         return Page(response.url, response.content, response.headers)
 
     def _download(self, url: str, dest: str) -> None:
-        print("legacy_rep__download")
-        print(url)
+        #print("legacy_rep__download")
+        #print(url)
         return download_file(url, dest, session=self.session)
