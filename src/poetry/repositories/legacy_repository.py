@@ -363,7 +363,7 @@ class LegacyRepository(PyPiRepository):
                 f' "{version}"'
             )
         urls = defaultdict(list)
-        print("legacy_rep__getrelease_info")
+        print("legacy_rep__getrelease_info1")
         print(urls)
         print(links)
         files = []
@@ -383,11 +383,15 @@ class LegacyRepository(PyPiRepository):
             ):
                 with temporary_directory() as temp_dir:
                     filepath = Path(temp_dir) / link.filename
+                    print("legacy_rep__getrelease_info2")
+                    print(link.url)
+                    print(str(filepath))
                     self._download(link.url, str(filepath))
 
                     known_hash = (
                         getattr(hashlib, link.hash_name)() if link.hash_name else None
                     )
+                    print(known_hash)
                     required_hash = hashlib.sha256()
 
                     chunksize = 4096
