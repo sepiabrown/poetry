@@ -5,6 +5,8 @@ import hashlib
 import re
 import urllib.parse
 import warnings
+import platform
+import sys
 
 from collections import defaultdict
 from html import unescape
@@ -115,6 +117,17 @@ class Page:
                 yield link
 
     def links_for_version(self, version: Version) -> Iterator[Link]:
+        m = wheel_file_re.match(link.filename)
+        os_file_re = re.compile(r"any|linux")
+        if not bool(os_file_re.search(m.group("plat"))) and platform.system().lower() == "linux":
+            print("Doesn't Match OS")
+            return None
+        print("Match OS")
+        if "cp"+str(sys.version_info[0])+str(sys.version_info[1]) != m.group("pyver") :
+            print("Doesn't Match Python version")
+            return None
+        print("Match Python version")
+
         for link in self.links:
             if self.link_version(link) == version:
                 yield link
