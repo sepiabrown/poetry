@@ -117,6 +117,11 @@ class Page:
                 yield link
 
     def links_for_version(self, version: Version) -> Iterator[Link]:
+        for link in self.links:
+            if self.link_version(link) == version:
+                yield link
+
+    def link_version(self, link: Link) -> Version | None:
         m = wheel_file_re.match(link.filename)
         os_file_re = re.compile(r"any|linux")
         if not bool(os_file_re.search(m.group("plat"))) and platform.system().lower() == "linux":
@@ -128,12 +133,6 @@ class Page:
             return None
         print("Match Python version")
 
-        for link in self.links:
-            if self.link_version(link) == version:
-                yield link
-
-    def link_version(self, link: Link) -> Version | None:
-        m = wheel_file_re.match(link.filename)
         if m:
             version = m.group("ver")
         else:
