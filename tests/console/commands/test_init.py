@@ -6,12 +6,12 @@ import sys
 
 from pathlib import Path
 from typing import TYPE_CHECKING
-from typing import Iterator
 
 import pytest
 
 from cleo.testers.command_tester import CommandTester
 
+from poetry.console.commands.init import InitCommand
 from poetry.repositories import Pool
 from poetry.utils._compat import decode
 from poetry.utils.helpers import canonicalize_name
@@ -20,6 +20,8 @@ from tests.helpers import get_package
 
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from _pytest.fixtures import FixtureRequest
     from poetry.core.packages.package import Package
     from pytest_mock import MockerFixture
@@ -171,6 +173,50 @@ flask = "^2.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^3.6.0"
+"""
+
+    assert expected in tester.io.fetch_output()
+
+
+# Regression test for https://github.com/python-poetry/poetry/issues/2355
+def test_interactive_with_dependencies_and_no_selection(
+    tester: CommandTester, repo: TestRepository
+):
+    repo.add_package(get_package("django-pendulum", "0.1.6-pre4"))
+    repo.add_package(get_package("pendulum", "2.0.0"))
+    repo.add_package(get_package("pytest", "3.6.0"))
+
+    inputs = [
+        "my-package",  # Package name
+        "1.2.3",  # Version
+        "This is a description",  # Description
+        "n",  # Author
+        "MIT",  # License
+        "~2.7 || ^3.6",  # Python
+        "",  # Interactive packages
+        "pendulu",  # Search for package
+        "",  # Do not select an option
+        "",  # Stop searching for packages
+        "",  # Interactive dev packages
+        "pytest",  # Search for package
+        "",  # Do not select an option
+        "",
+        "",
+        "\n",  # Generate
+    ]
+    tester.execute(inputs="\n".join(inputs))
+    expected = """\
+[tool.poetry]
+name = "my-package"
+version = "1.2.3"
+description = "This is a description"
+authors = ["Your Name <you@example.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "my_package"}]
+
+[tool.poetry.dependencies]
+python = "~2.7 || ^3.6"
 """
 
     assert expected in tester.io.fetch_output()
@@ -542,6 +588,56 @@ pytest = "^3.6.0"
     assert expected in tester.io.fetch_output()
 
 
+def test_interactive_with_wrong_dependency_inputs(
+    tester: CommandTester, repo: TestRepository
+):
+    repo.add_package(get_package("pendulum", "2.0.0"))
+    repo.add_package(get_package("pytest", "3.6.0"))
+
+    inputs = [
+        "my-package",  # Package name
+        "1.2.3",  # Version
+        "This is a description",  # Description
+        "n",  # Author
+        "MIT",  # License
+        "^3.8",  # Python
+        "",  # Interactive packages
+        "pendulum 2.0.0 foo",  # Package name and constraint (invalid)
+        "pendulum 2.0.0",  # Package name and constraint (invalid)
+        "pendulum 2.0.0",  # Package name and constraint (invalid)
+        "pendulum 2.0.0",  # Package name and constraint (invalid)
+        "pendulum@^2.0.0",  # Package name and constraint (valid)
+        "",  # End package selection
+        "",  # Interactive dev packages
+        "pytest 3.6.0 foo",  # Dev package name and constraint (invalid)
+        "pytest 3.6.0",  # Dev package name and constraint (invalid)
+        "pytest@3.6.0",  # Dev package name and constraint (valid)
+        "",  # End package selection
+        "\n",  # Generate
+    ]
+    tester.execute(inputs="\n".join(inputs))
+
+    expected = """\
+[tool.poetry]
+name = "my-package"
+version = "1.2.3"
+description = "This is a description"
+authors = ["Your Name <you@example.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "my_package"}]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+pendulum = "^2.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "3.6.0"
+"""
+
+    assert expected in tester.io.fetch_output()
+
+
 def test_python_option(tester: CommandTester):
     inputs = [
         "my-package",  # Package name
@@ -734,6 +830,51 @@ pytest-requests = "^0.2.0"
     assert 'pytest = "^3.6.0"' in output
 
 
+def test_predefined_all_options(tester: CommandTester, repo: TestRepository):
+    repo.add_package(get_package("pendulum", "2.0.0"))
+    repo.add_package(get_package("pytest", "3.6.0"))
+
+    inputs = [
+        "1.2.3",  # Version
+        "",  # Author
+        "n",  # Interactive packages
+        "n",  # Interactive dev packages
+        "\n",  # Generate
+    ]
+
+    tester.execute(
+        "--name my-package "
+        "--description 'This is a description' "
+        "--author 'Foo Bar <foo@example.com>' "
+        "--python '^3.8' "
+        "--license MIT "
+        "--dependency pendulum "
+        "--dev-dependency pytest",
+        inputs="\n".join(inputs),
+    )
+
+    expected = """\
+[tool.poetry]
+name = "my-package"
+version = "1.2.3"
+description = "This is a description"
+authors = ["Foo Bar <foo@example.com>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "my_package"}]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+pendulum = "^2.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^3.6.0"
+"""
+
+    output = tester.io.fetch_output()
+    assert expected in output
+
+
 def test_add_package_with_extras_and_whitespace(tester: CommandTester):
     result = tester.command._parse_requirements(["databases[postgresql, sqlite]"])
 
@@ -743,6 +884,7 @@ def test_add_package_with_extras_and_whitespace(tester: CommandTester):
     assert "sqlite" in result[0]["extras"]
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="regression in tomlkit")
 def test_init_existing_pyproject_simple(
     tester: CommandTester,
     source_dir: Path,
@@ -759,6 +901,7 @@ line-length = 88
     assert f"{existing_section}\n{init_basic_toml}" in pyproject_file.read_text()
 
 
+@pytest.mark.xfail(sys.platform == "win32", reason="regression in tomlkit")
 def test_init_non_interactive_existing_pyproject_add_dependency(
     tester: CommandTester,
     source_dir: Path,
@@ -814,3 +957,29 @@ build-backend = "setuptools.build_meta"
         == "A pyproject.toml file with a defined build-system already exists."
     )
     assert existing_section in pyproject_file.read_text()
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        None,
+        "",
+        "foo",
+        "   foo  ",
+        "foo==2.0",
+        "foo@2.0",
+        "  foo@2.0   ",
+        "foo 2.0",
+        "   foo 2.0  ",
+    ],
+)
+def test__validate_package_valid(name: str | None):
+    assert InitCommand._validate_package(name) == name
+
+
+@pytest.mark.parametrize(
+    "name", ["foo bar 2.0", "   foo bar 2.0   ", "foo bar foobar 2.0"]
+)
+def test__validate_package_invalid(name: str):
+    with pytest.raises(ValueError):
+        assert InitCommand._validate_package(name)

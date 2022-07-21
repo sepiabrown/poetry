@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from poetry.mixology.assignment import Assignment
 from poetry.mixology.set_relation import SetRelation
+from poetry.mixology.term import Term
 
 
 if TYPE_CHECKING:
@@ -11,7 +12,6 @@ if TYPE_CHECKING:
     from poetry.core.packages.package import Package
 
     from poetry.mixology.incompatibility import Incompatibility
-    from poetry.mixology.term import Term
 
 
 class PartialSolution:
@@ -146,18 +146,29 @@ class PartialSolution:
         """
         name = assignment.dependency.complete_name
         old_positive = self._positive.get(name)
+        if old_positive is None and assignment.dependency.features:
+            old_positive_without_features = self._positive.get(
+                assignment.dependency.name
+            )
+            if old_positive_without_features is not None:
+                dep = old_positive_without_features.dependency.with_features(
+                    assignment.dependency.features
+                )
+                old_positive = Term(dep, is_positive=True)
         if old_positive is not None:
-            self._positive[name] = old_positive.intersect(assignment)
+            value = old_positive.intersect(assignment)
+            assert value is not None
+            self._positive[name] = value
 
             return
 
         ref = assignment.dependency.complete_name
         negative_by_ref = self._negative.get(name)
         old_negative = None if negative_by_ref is None else negative_by_ref.get(ref)
-        if old_negative is None:
-            term = assignment
-        else:
-            term = assignment.intersect(old_negative)
+        term = (
+            assignment if old_negative is None else assignment.intersect(old_negative)
+        )
+        assert term is not None
 
         if term.is_positive():
             if name in self._negative:
@@ -206,7 +217,7 @@ class PartialSolution:
     def satisfies(self, term: Term) -> bool:
         return self.relation(term) == SetRelation.SUBSET
 
-    def relation(self, term: Term) -> int:
+    def relation(self, term: Term) -> str:
         positive = self._positive.get(term.dependency.complete_name)
         if positive is not None:
             return positive.relation(term)

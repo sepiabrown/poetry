@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from poetry.factory import Factory
@@ -8,7 +9,8 @@ from tests.mixology.helpers import check_solver_result
 
 
 if TYPE_CHECKING:
-    from poetry.packages.project_package import ProjectPackage
+    from poetry.core.packages.project_package import ProjectPackage
+
     from poetry.repositories import Repository
     from tests.mixology.version_solver.conftest import Provider
 
@@ -87,6 +89,25 @@ def test_disjoint_root_constraints(
 
     error = """\
 Because myapp depends on both foo (1.0.0) and foo (2.0.0), version solving failed."""
+
+    check_solver_result(root, provider, error=error)
+
+
+def test_disjoint_root_constraints_path_dependencies(
+    root: ProjectPackage, provider: Provider, repo: Repository
+):
+    provider.set_package_python_versions("^3.7")
+    fixtures = Path(__file__).parent.parent.parent / "fixtures"
+    project_dir = fixtures.joinpath("with_conditional_path_deps")
+    dependency1 = Factory.create_dependency("demo", {"path": project_dir / "demo_one"})
+    root.add_dependency(dependency1)
+    dependency2 = Factory.create_dependency("demo", {"path": project_dir / "demo_two"})
+    root.add_dependency(dependency2)
+
+    error = (
+        f"Because myapp depends on both {str(dependency1).replace('*', '1.2.3')} "
+        f"and {str(dependency2).replace('*', '1.2.3')}, version solving failed."
+    )
 
     check_solver_result(root, provider, error=error)
 

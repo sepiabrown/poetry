@@ -36,9 +36,7 @@ def test_publish_returns_non_zero_code_for_upload_errors(
 Publishing simple-project (1.2.3) to PyPI
 """
     expected_error_output = """\
-  UploadError
-
-  HTTP Error 400: Bad Request
+HTTP Error 400: Bad Request
 """
 
     assert expected_output in app_tester.io.fetch_output()
@@ -73,7 +71,7 @@ def test_publish_with_cert(app_tester: ApplicationTester, mocker: MockerFixture)
     app_tester.execute("publish --cert path/to/ca.pem")
 
     assert [
-        (None, None, None, Path("path/to/ca.pem"), None, False)
+        (None, None, None, Path("path/to/ca.pem"), None, False, False)
     ] == publisher_publish.call_args
 
 
@@ -82,18 +80,26 @@ def test_publish_with_client_cert(app_tester: ApplicationTester, mocker: MockerF
 
     app_tester.execute("publish --client-cert path/to/client.pem")
     assert [
-        (None, None, None, None, Path("path/to/client.pem"), False)
+        (None, None, None, None, Path("path/to/client.pem"), False, False)
     ] == publisher_publish.call_args
 
 
-def test_publish_dry_run(
-    app_tester: ApplicationTester, http: type[httpretty.httpretty]
+@pytest.mark.parametrize(
+    "options",
+    [
+        "--dry-run",
+        "--skip-existing",
+        "--dry-run --skip-existing",
+    ],
+)
+def test_publish_dry_run_skip_existing(
+    app_tester: ApplicationTester, http: type[httpretty.httpretty], options: str
 ):
     http.register_uri(
-        http.POST, "https://upload.pypi.org/legacy/", status=403, body="Forbidden"
+        http.POST, "https://upload.pypi.org/legacy/", status=409, body="Conflict"
     )
 
-    exit_code = app_tester.execute("publish --dry-run --username foo --password bar")
+    exit_code = app_tester.execute(f"publish {options} --username foo --password bar")
 
     assert exit_code == 0
 
@@ -103,3 +109,20 @@ def test_publish_dry_run(
     assert "Publishing simple-project (1.2.3) to PyPI" in output
     assert "- Uploading simple-project-1.2.3.tar.gz" in error
     assert "- Uploading simple_project-1.2.3-py2.py3-none-any.whl" in error
+
+
+def test_skip_existing_output(
+    app_tester: ApplicationTester, http: type[httpretty.httpretty]
+):
+    http.register_uri(
+        http.POST, "https://upload.pypi.org/legacy/", status=409, body="Conflict"
+    )
+
+    exit_code = app_tester.execute(
+        "publish --skip-existing --username foo --password bar"
+    )
+
+    assert exit_code == 0
+
+    error = app_tester.io.fetch_error()
+    assert "- Uploading simple-project-1.2.3.tar.gz File exists. Skipping" in error

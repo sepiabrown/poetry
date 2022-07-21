@@ -7,7 +7,6 @@ from poetry.console.commands.installer_command import InstallerCommand
 
 
 class UpdateCommand(InstallerCommand):
-
     name = "update"
     description = (
         "Update the dependencies as according to the <comment>pyproject.toml</> file."
@@ -17,7 +16,13 @@ class UpdateCommand(InstallerCommand):
         argument("packages", "The packages to update", optional=True, multiple=True)
     ]
     options = [
-        option("no-dev", None, "Do not update the development dependencies."),
+        *InstallerCommand._group_dependency_options(),
+        option(
+            "no-dev",
+            None,
+            "Do not update the development dependencies."
+            " (<warning>Deprecated</warning>)",
+        ),
         option(
             "dry-run",
             None,
@@ -39,9 +44,7 @@ class UpdateCommand(InstallerCommand):
         if packages:
             self._installer.whitelist({name: "*" for name in packages})
 
-        if self.option("no-dev"):
-            self._installer.with_groups(["dev"])
-
+        self._installer.only_groups(self.activated_groups)
         self._installer.dry_run(self.option("dry-run"))
         self._installer.execute_operations(not self.option("lock"))
 

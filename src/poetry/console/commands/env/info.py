@@ -12,13 +12,12 @@ if TYPE_CHECKING:
 
 
 class EnvInfoCommand(Command):
-
     name = "env info"
     description = "Displays information about the current environment."
 
     options = [option("path", "p", "Only display the environment's path.")]
 
-    def handle(self) -> int | None:
+    def handle(self) -> int:
         from poetry.utils.env import EnvManager
 
         env = EnvManager(self.poetry).get()
@@ -29,10 +28,10 @@ class EnvInfoCommand(Command):
 
             self.line(str(env.path))
 
-            return None
+            return 0
 
         self._display_complete_info(env)
-        return None
+        return 0
 
     def _display_complete_info(self, env: Env) -> None:
         env_python_version = ".".join(str(s) for s in env.version_info[:3])

@@ -22,12 +22,16 @@ if TYPE_CHECKING:
     from pytest_mock import MockerFixture
 
 
-class MockRepository(PyPiRepository):
+@pytest.fixture(autouse=True)
+def _use_simple_keyring(with_simple_keyring: None) -> None:
+    pass
 
+
+class MockRepository(PyPiRepository):
     JSON_FIXTURES = Path(__file__).parent / "fixtures" / "pypi.org" / "json"
     DIST_FIXTURES = Path(__file__).parent / "fixtures" / "pypi.org" / "dists"
 
-    def __init__(self, fallback: bool = False):
+    def __init__(self, fallback: bool = False) -> None:
         super().__init__(url="http://foo.bar", disable_cache=True, fallback=fallback)
 
     def _get(self, url: str) -> dict | None:
@@ -100,6 +104,17 @@ def test_package():
     assert len([r for r in package.requires if r.is_optional()]) == 5
     assert len(package.extras["security"]) == 3
     assert len(package.extras["socks"]) == 2
+
+    assert package.files == [
+        {
+            "file": "requests-2.18.4-py2.py3-none-any.whl",
+            "hash": "sha256:6a1b267aa90cac58ac3a765d067950e7dbbf75b1da07e895d1f594193a40a38b",  # noqa: E501
+        },
+        {
+            "file": "requests-2.18.4.tar.gz",
+            "hash": "sha256:9c443e7324ba5b85070c4a818ade28bfabedf16ea10206da1132edaa6dda237e",  # noqa: E501
+        },
+    ]
 
     win_inet = package.extras["socks"][0]
     assert win_inet.name == "win-inet-pton"
@@ -218,10 +233,11 @@ def test_get_should_invalid_cache_on_too_many_redirects_error(mocker: MockerFixt
     delete_cache = mocker.patch("cachecontrol.caches.file_cache.FileCache.delete")
 
     response = Response()
+    response.status_code = 200
     response.encoding = "utf-8"
     response.raw = BytesIO(encode('{"foo": "bar"}'))
     mocker.patch(
-        "cachecontrol.adapter.CacheControlAdapter.send",
+        "poetry.utils.authenticator.Authenticator.get",
         side_effect=[TooManyRedirects(), response],
     )
     repository = PyPiRepository()

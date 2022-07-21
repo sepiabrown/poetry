@@ -11,7 +11,6 @@ from poetry.console.commands.command import Command
 
 
 class NewCommand(Command):
-
     name = "new"
     description = "Creates a new Python project at <path>."
 
@@ -27,7 +26,7 @@ class NewCommand(Command):
         ),
     ]
 
-    def handle(self) -> None:
+    def handle(self) -> int:
         from pathlib import Path
 
         from poetry.core.vcs.git import GitConfig
@@ -87,3 +86,5 @@ class NewCommand(Command):
             f"Created package <info>{layout_._package_name}</> in"
             f" <fg=blue>{path.as_posix()}</>"
         )
+
+        return 0

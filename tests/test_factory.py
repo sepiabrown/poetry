@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from entrypoints import EntryPoint
+from deepdiff import DeepDiff
 from poetry.core.semver.helpers import parse_constraint
 from poetry.core.toml.file import TOMLFile
 
@@ -13,6 +13,7 @@ from poetry.factory import Factory
 from poetry.plugins.plugin import Plugin
 from poetry.repositories.legacy_repository import LegacyRepository
 from poetry.repositories.pypi_repository import PyPiRepository
+from tests.helpers import mock_metadata_entry_points
 
 
 if TYPE_CHECKING:
@@ -27,8 +28,8 @@ fixtures_dir = Path(__file__).parent / "fixtures"
 
 class MyPlugin(Plugin):
     def activate(self, poetry: Poetry, io: IO) -> None:
-        io.write_line("Updating version")
-        poetry.package.set_version("9.9.9")
+        io.write_line("Setting readmes")
+        poetry.package.readmes = ("README.md",)
 
 
 def test_create_poetry():
@@ -41,10 +42,12 @@ def test_create_poetry():
     assert package.description == "Some description."
     assert package.authors == ["Sébastien Eustace <sebastien@eustace.io>"]
     assert package.license.id == "MIT"
-    assert (
-        package.readme.relative_to(fixtures_dir).as_posix()
-        == "sample_project/README.rst"
-    )
+
+    for readme in package.readmes:
+        assert (
+            readme.relative_to(fixtures_dir).as_posix() == "sample_project/README.rst"
+        )
+
     assert package.homepage == "https://python-poetry.org"
     assert package.repository_url == "https://github.com/python-poetry/poetry"
     assert package.keywords == ["packaging", "dependency", "poetry"]
@@ -131,6 +134,34 @@ def test_create_poetry():
         "Topic :: Software Development :: Build Tools",
         "Topic :: Software Development :: Libraries :: Python Modules",
     ]
+
+
+@pytest.mark.parametrize(
+    ("project",),
+    [
+        ("simple_project",),
+        ("project_with_extras",),
+    ],
+)
+def test_create_pyproject_from_package(project: str):
+    poetry = Factory().create_poetry(fixtures_dir / project)
+    package = poetry.package
+
+    pyproject = Factory.create_pyproject_from_package(package)
+
+    result = pyproject["tool"]["poetry"]
+    expected = poetry.pyproject.poetry_config
+
+    # packages do not support this at present
+    expected.pop("scripts", None)
+
+    # remove any empty sections
+    sections = list(expected.keys())
+    for section in sections:
+        if not expected[section]:
+            expected.pop(section)
+
+    assert not DeepDiff(expected, result)
 
 
 def test_create_poetry_with_packages_and_includes():
@@ -299,15 +330,14 @@ def test_create_poetry_with_local_config(fixture_dir: FixtureDirGetter):
     assert not poetry.config.get("virtualenvs.in-project")
     assert not poetry.config.get("virtualenvs.create")
     assert not poetry.config.get("virtualenvs.options.always-copy")
+    assert not poetry.config.get("virtualenvs.options.no-pip")
+    assert not poetry.config.get("virtualenvs.options.no-setuptools")
     assert not poetry.config.get("virtualenvs.options.system-site-packages")
 
 
 def test_create_poetry_with_plugins(mocker: MockerFixture):
-    mocker.patch(
-        "entrypoints.get_group_all",
-        return_value=[EntryPoint("my-plugin", "tests.test_factory", "MyPlugin")],
-    )
+    mock_metadata_entry_points(mocker, MyPlugin)
 
     poetry = Factory().create_poetry(fixtures_dir / "sample_project")
 
-    assert poetry.package.version.text == "9.9.9"
+    assert poetry.package.readmes == ("README.md",)

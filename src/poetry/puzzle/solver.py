@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-import enum
 import time
 
 from collections import defaultdict
 from contextlib import contextmanager
 from typing import TYPE_CHECKING
-from typing import Callable
 from typing import FrozenSet
-from typing import Iterator
 from typing import Tuple
+from typing import TypeVar
+
+from poetry.core.packages.dependency_group import MAIN_GROUP
 
 from poetry.mixology import resolve_version
 from poetry.mixology.failure import SolveFailure
@@ -20,18 +20,15 @@ from poetry.puzzle.provider import Provider
 
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
+
     from cleo.io.io import IO
     from poetry.core.packages.dependency import Dependency
-    from poetry.core.packages.directory_dependency import DirectoryDependency
-    from poetry.core.packages.file_dependency import FileDependency
     from poetry.core.packages.package import Package
     from poetry.core.packages.project_package import ProjectPackage
-    from poetry.core.packages.url_dependency import URLDependency
-    from poetry.core.packages.vcs_dependency import VCSDependency
 
     from poetry.puzzle.transaction import Transaction
     from poetry.repositories import Pool
-    from poetry.repositories import Repository
     from poetry.utils.env import Env
 
 
@@ -40,22 +37,24 @@ class Solver:
         self,
         package: ProjectPackage,
         pool: Pool,
-        installed: Repository,
-        locked: Repository,
+        installed: list[Package],
+        locked: list[Package],
         io: IO,
         provider: Provider | None = None,
-    ):
+    ) -> None:
         self._package = package
         self._pool = pool
-        self._installed = installed
-        self._locked = locked
+        self._installed_packages = installed
+        self._locked_packages = locked
         self._io = io
 
         if provider is None:
-            provider = Provider(self._package, self._pool, self._io)
+            provider = Provider(
+                self._package, self._pool, self._io, installed=installed
+            )
 
         self._provider = provider
-        self._overrides: list[dict] = []
+        self._overrides: list[dict[DependencyPackage, dict[str, Dependency]]] = []
 
     @property
     def provider(self) -> Provider:
@@ -66,7 +65,7 @@ class Solver:
         with self.provider.use_environment(env):
             yield
 
-    def solve(self, use_latest: list[str] = None) -> Transaction:
+    def solve(self, use_latest: list[str] | None = None) -> Transaction:
         from poetry.puzzle.transaction import Transaction
 
         with self._provider.progress():
@@ -85,16 +84,17 @@ class Solver:
                 )
 
         return Transaction(
-            self._locked.packages,
+            self._locked_packages,
             list(zip(packages, depths)),
-            installed_packages=self._installed.packages,
+            installed_packages=self._installed_packages,
             root_package=self._package,
         )
 
     def solve_in_compatibility_mode(
-        self, overrides: tuple[dict, ...], use_latest: list[str] = None
+        self,
+        overrides: tuple[dict[DependencyPackage, dict[str, Dependency]], ...],
+        use_latest: list[str] | None = None,
     ) -> tuple[list[Package], list[int]]:
-
         packages = []
         depths = []
         for override in overrides:
@@ -120,14 +120,22 @@ class Solver:
 
         return packages, depths
 
-    def _solve(self, use_latest: list[str] = None) -> tuple[list[Package], list[int]]:
+    def _solve(
+        self, use_latest: list[str] | None = None
+    ) -> tuple[list[Package], list[int]]:
         if self._provider._overrides:
             self._overrides.append(self._provider._overrides)
 
-        locked = {
-            package.name: DependencyPackage(package.to_dependency(), package)
-            for package in self._locked.packages
-        }
+        locked: dict[str, list[DependencyPackage]] = defaultdict(list)
+        for package in self._locked_packages:
+            locked[package.name].append(
+                DependencyPackage(package.to_dependency(), package)
+            )
+        for dependency_packages in locked.values():
+            dependency_packages.sort(
+                key=lambda p: p.package.version,
+                reverse=True,
+            )
 
         try:
             result = resolve_version(
@@ -140,13 +148,8 @@ class Solver:
         except SolveFailure as e:
             raise SolverProblemError(e)
 
-        # NOTE passing explicit empty array for seen to reset between invocations during
-        # update + install cycle
-        results = dict(
-            depth_first_search(
-                PackageNode(self._package, packages, seen=[]), aggregate_package_nodes
-            )
-        )
+        combined_nodes = depth_first_search(PackageNode(self._package, packages))
+        results = dict(aggregate_package_nodes(nodes) for nodes in combined_nodes)
 
         # Merging feature packages with base packages
         final_packages = []
@@ -155,27 +158,28 @@ class Solver:
             if package.features:
                 for _package in packages:
                     if (
-                        _package.name == package.name
-                        and not _package.is_same_package_as(package)
+                        not _package.features
+                        and _package.name == package.name
                         and _package.version == package.version
                     ):
                         for dep in package.requires:
-                            if dep.is_same_package_as(_package):
+                            # Prevent adding base package as a dependency to itself
+                            if _package.name == dep.name:
                                 continue
 
                             if dep not in _package.requires:
                                 _package.add_dependency(dep)
-
-                continue
-
-            final_packages.append(package)
-            depths.append(results[package])
+            else:
+                final_packages.append(package)
+                depths.append(results[package])
 
         # Return the packages in their original order with associated depths
         return final_packages, depths
 
 
 DFSNodeID = Tuple[str, FrozenSet[str], bool]
+
+T = TypeVar("T", bound="DFSNode")
 
 
 class DFSNode:
@@ -184,7 +188,7 @@ class DFSNode:
         self.name = name
         self.base_name = base_name
 
-    def reachable(self) -> list:
+    def reachable(self: T) -> list[T]:
         return []
 
     def visit(self, parents: list[PackageNode]) -> None:
@@ -194,63 +198,42 @@ class DFSNode:
         return str(self.id)
 
 
-class VisitedState(enum.Enum):
-    Unvisited = 0
-    PartiallyVisited = 1
-    Visited = 2
-
-
-def depth_first_search(
-    source: PackageNode, aggregator: Callable
-) -> list[tuple[Package, int]]:
+def depth_first_search(source: PackageNode) -> list[list[PackageNode]]:
     back_edges: dict[DFSNodeID, list[PackageNode]] = defaultdict(list)
-    visited: dict[DFSNodeID, VisitedState] = {}
+    visited: set[DFSNodeID] = set()
     topo_sorted_nodes: list[PackageNode] = []
 
     dfs_visit(source, back_edges, visited, topo_sorted_nodes)
 
     # Combine the nodes by name
-    combined_nodes = defaultdict(list)
-    name_children = defaultdict(list)
+    combined_nodes: dict[str, list[PackageNode]] = defaultdict(list)
     for node in topo_sorted_nodes:
         node.visit(back_edges[node.id])
-        name_children[node.name].extend(node.reachable())
         combined_nodes[node.name].append(node)
 
-    combined_topo_sorted_nodes = [
+    combined_topo_sorted_nodes: list[list[PackageNode]] = [
         combined_nodes.pop(node.name)
         for node in topo_sorted_nodes
         if node.name in combined_nodes
     ]
 
-    return [
-        aggregator(nodes, name_children[nodes[0].name])
-        for nodes in combined_topo_sorted_nodes
-    ]
+    return combined_topo_sorted_nodes
 
 
 def dfs_visit(
     node: PackageNode,
     back_edges: dict[DFSNodeID, list[PackageNode]],
-    visited: dict[DFSNodeID, VisitedState],
+    visited: set[DFSNodeID],
     sorted_nodes: list[PackageNode],
-) -> bool:
-    if visited.get(node.id, VisitedState.Unvisited) == VisitedState.Visited:
-        return True
-    if visited.get(node.id, VisitedState.Unvisited) == VisitedState.PartiallyVisited:
-        # We have a circular dependency.
-        # Since the dependencies are resolved we can
-        # simply skip it because we already have it
-        return True
+) -> None:
+    if node.id in visited:
+        return
+    visited.add(node.id)
 
-    visited[node.id] = VisitedState.PartiallyVisited
     for neighbor in node.reachable():
         back_edges[neighbor.id].append(node)
-        if not dfs_visit(neighbor, back_edges, visited, sorted_nodes):
-            return False
-    visited[node.id] = VisitedState.Visited
+        dfs_visit(neighbor, back_edges, visited, sorted_nodes)
     sorted_nodes.insert(0, node)
-    return True
 
 
 class PackageNode(DFSNode):
@@ -258,28 +241,12 @@ class PackageNode(DFSNode):
         self,
         package: Package,
         packages: list[Package],
-        seen: list[Package],
         previous: PackageNode | None = None,
-        previous_dep: None
-        | (
-            DirectoryDependency
-            | FileDependency
-            | URLDependency
-            | VCSDependency
-            | Dependency
-        ) = None,
-        dep: None
-        | (
-            DirectoryDependency
-            | FileDependency
-            | URLDependency
-            | VCSDependency
-            | Dependency
-        ) = None,
+        previous_dep: Dependency | None = None,
+        dep: Dependency | None = None,
     ) -> None:
         self.package = package
         self.packages = packages
-        self.seen = seen
 
         self.previous = previous
         self.previous_dep = previous_dep
@@ -291,7 +258,7 @@ class PackageNode(DFSNode):
             self.groups: frozenset[str] = frozenset()
             self.optional = True
         elif dep:
-            self.category = "main" if "default" in dep.groups else "dev"
+            self.category = "main" if MAIN_GROUP in dep.groups else "dev"
             self.groups = dep.groups
             self.optional = dep.is_optional()
         else:
@@ -305,12 +272,6 @@ class PackageNode(DFSNode):
 
     def reachable(self) -> list[PackageNode]:
         children: list[PackageNode] = []
-
-        # skip already traversed packages
-        if self.package in self.seen:
-            return []
-        else:
-            self.seen.append(self.package)
 
         if (
             self.dep
@@ -339,7 +300,7 @@ class PackageNode(DFSNode):
                         and dependency.constraint.allows(pkg.version.stable)
                     )
                     and not any(
-                        child.package.name == pkg.name
+                        child.package.complete_name == pkg.complete_name
                         and child.groups == dependency.groups
                         for child in children
                     )
@@ -348,7 +309,6 @@ class PackageNode(DFSNode):
                         PackageNode(
                             pkg,
                             self.packages,
-                            self.seen,
                             self,
                             dependency,
                             self.dep or dependency,
@@ -369,19 +329,15 @@ class PackageNode(DFSNode):
         )
 
 
-def aggregate_package_nodes(
-    nodes: list[PackageNode], children: list[PackageNode]
-) -> tuple[Package, int]:
+def aggregate_package_nodes(nodes: list[PackageNode]) -> tuple[Package, int]:
     package = nodes[0].package
     depth = max(node.depth for node in nodes)
     groups: list[str] = []
     for node in nodes:
         groups.extend(node.groups)
 
-    category = (
-        "main" if any("default" in node.groups for node in children + nodes) else "dev"
-    )
-    optional = all(node.optional for node in children + nodes)
+    category = "main" if any(MAIN_GROUP in node.groups for node in nodes) else "dev"
+    optional = all(node.optional for node in nodes)
     for node in nodes:
         node.depth = depth
         node.category = category

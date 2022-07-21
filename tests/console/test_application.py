@@ -4,12 +4,14 @@ import re
 
 from typing import TYPE_CHECKING
 
+import pytest
+
 from cleo.testers.application_tester import ApplicationTester
-from entrypoints import EntryPoint
 
 from poetry.console.application import Application
 from poetry.console.commands.command import Command
 from poetry.plugins.application_plugin import ApplicationPlugin
+from tests.helpers import mock_metadata_entry_points
 
 
 if TYPE_CHECKING:
@@ -28,20 +30,15 @@ class FooCommand(Command):
 
 
 class AddCommandPlugin(ApplicationPlugin):
-    def activate(self, application: Application) -> None:
-        application.command_loader.register_factory("foo", lambda: FooCommand())
+    commands = [FooCommand]
 
 
-def test_application_with_plugins(mocker: MockerFixture):
-    mocker.patch(
-        "entrypoints.get_group_all",
-        return_value=[
-            EntryPoint(
-                "my-plugin", "tests.console.test_application", "AddCommandPlugin"
-            )
-        ],
-    )
+@pytest.fixture
+def with_add_command_plugin(mocker: MockerFixture) -> None:
+    mock_metadata_entry_points(mocker, AddCommandPlugin)
 
+
+def test_application_with_plugins(with_add_command_plugin: None):
     app = Application()
 
     tester = ApplicationTester(app)
@@ -51,16 +48,7 @@ def test_application_with_plugins(mocker: MockerFixture):
     assert tester.status_code == 0
 
 
-def test_application_with_plugins_disabled(mocker: MockerFixture):
-    mocker.patch(
-        "entrypoints.get_group_all",
-        return_value=[
-            EntryPoint(
-                "my-plugin", "tests.console.test_application", "AddCommandPlugin"
-            )
-        ],
-    )
-
+def test_application_with_plugins_disabled(with_add_command_plugin: None):
     app = Application()
 
     tester = ApplicationTester(app)
@@ -70,16 +58,7 @@ def test_application_with_plugins_disabled(mocker: MockerFixture):
     assert tester.status_code == 0
 
 
-def test_application_execute_plugin_command(mocker: MockerFixture):
-    mocker.patch(
-        "entrypoints.get_group_all",
-        return_value=[
-            EntryPoint(
-                "my-plugin", "tests.console.test_application", "AddCommandPlugin"
-            )
-        ],
-    )
-
+def test_application_execute_plugin_command(with_add_command_plugin: None):
     app = Application()
 
     tester = ApplicationTester(app)
@@ -90,17 +69,8 @@ def test_application_execute_plugin_command(mocker: MockerFixture):
 
 
 def test_application_execute_plugin_command_with_plugins_disabled(
-    mocker: MockerFixture,
+    with_add_command_plugin: None,
 ):
-    mocker.patch(
-        "entrypoints.get_group_all",
-        return_value=[
-            EntryPoint(
-                "my-plugin", "tests.console.test_application", "AddCommandPlugin"
-            )
-        ],
-    )
-
     app = Application()
 
     tester = ApplicationTester(app)
@@ -109,3 +79,23 @@ def test_application_execute_plugin_command_with_plugins_disabled(
     assert tester.io.fetch_output() == ""
     assert tester.io.fetch_error() == '\nThe command "foo" does not exist.\n'
     assert tester.status_code == 1
+
+
+@pytest.mark.parametrize("disable_cache", [True, False])
+def test_application_verify_source_cache_flag(disable_cache: bool):
+    app = Application()
+
+    tester = ApplicationTester(app)
+    command = "debug info"
+
+    if disable_cache:
+        command = f"{command} --no-cache"
+
+    assert not app._poetry
+
+    tester.execute(command)
+
+    assert app.poetry.pool.repositories
+
+    for repo in app.poetry.pool.repositories:
+        assert repo._disable_cache == disable_cache
