@@ -7,7 +7,6 @@ from poetry.console.commands.command import Command
 
 
 class EnvRemoveCommand(Command):
-
     name = "env remove"
     description = "Remove virtual environments associated with the project."
 
@@ -29,7 +28,7 @@ class EnvRemoveCommand(Command):
         ),
     ]
 
-    def handle(self) -> None:
+    def handle(self) -> int:
         from poetry.utils.env import EnvManager
 
         pythons = self.argument("python")
@@ -46,3 +45,5 @@ class EnvRemoveCommand(Command):
             for venv in manager.list():
                 manager.remove_venv(venv.path)
                 self.line(f"Deleted virtualenv: <comment>{venv.path}</comment>")
+
+        return 0

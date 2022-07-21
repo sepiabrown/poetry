@@ -6,13 +6,12 @@ from poetry.console.commands.command import Command
 
 
 class SearchCommand(Command):
-
     name = "search"
     description = "Searches for packages on remote repositories."
 
     arguments = [argument("tokens", "The tokens to search for.", multiple=True)]
 
-    def handle(self) -> None:
+    def handle(self) -> int:
         from poetry.repositories.pypi_repository import PyPiRepository
 
         results = PyPiRepository().search(self.argument("tokens"))
@@ -27,3 +26,5 @@ class SearchCommand(Command):
 
             if result.description:
                 self.line(f" {result.description}")
+
+        return 0

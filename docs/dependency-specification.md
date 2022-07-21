@@ -71,15 +71,51 @@ Here are some examples of inequality requirements:
 != 1.2.3
 ```
 
-### Exact requirements
-
-You can specify the exact version of a package.
-This will tell Poetry to install this version and this version only.
-If other dependencies require a different version, the solver will ultimately fail and abort any install or update procedures.
-
 #### Multiple requirements
 
 Multiple version requirements can also be separated with a comma, e.g. `>= 1.2, < 1.5`.
+
+### Exact requirements
+
+You can specify the exact version of a package.
+
+`==1.2.3` is an example of an exact version specification.
+
+This will tell Poetry to install this version and this version only.
+If other dependencies require a different version, the solver will ultimately fail and abort any install or update procedures.
+
+### Using the `@` operator
+
+When adding dependencies via `poetry add`, you can use the `@` operator.
+This is understood similarly to the `==` syntax, but also allows prefixing any
+specifiers that are valid in `pyproject.toml`. For example:
+
+```shell
+poetry add django@^4.0.0
+```
+
+The above would translate to the following entry in `pyproject.toml`:
+```toml
+Django = "^4.0.0"
+```
+
+The special keyword `latest` is also understood by the `@` operator:
+```shell
+poetry add django@latest
+```
+
+The above would translate to the following entry in `pyproject.toml`, assuming the latest release of `django` is `4.0.5`:
+```toml
+Django = "^4.0.5"
+```
+
+#### Extras
+
+Extras and `@` can be combined as one might expect (`package[extra]@version`):
+
+```shell
+poetry add django[bcrypt]@^4.0.0
+```
 
 ## `git` dependencies
 
@@ -115,6 +151,34 @@ To use an SSH connection, for example in the case of private repositories, use t
 [tool.poetry.dependencies]
 requests = { git = "git@github.com:requests/requests.git" }
 ```
+
+To use HTTP basic authentication with your git repositories, you can configure credentials similar to
+how [repository credentials]({{< relref "repositories#configuring-credentials" >}}) are configured.
+
+```bash
+poetry config repositories.git-org-project https://github.com/org/project.git
+poetry config http-basic.git-org-project username token
+poetry add git+https://github.com/org/project.git
+```
+
+{{% note %}}
+With Poetry 1.2 releases, the default git client used is [Dulwich](https://www.dulwich.io/).
+
+We fall back to legacy system git client implementation in cases where
+[gitcredentials](https://git-scm.com/docs/gitcredentials) is used. This fallback will be removed in
+a future release where `gitcredentials` helpers can be better supported natively.
+
+In cases where you encounter issues with the default implementation that used to work prior to
+Poetry 1.2, you may wish to explicitly configure the use of the system git client via a shell
+subprocess call.
+
+```bash
+poetry config experimental.system-git-client true
+```
+
+Keep in mind however, that doing so will surface bugs that existed in versions prior to 1.2 which
+were caused due to the use of the system git client.
+{{% /note %}}
 
 ## `path` dependencies
 
@@ -152,9 +216,24 @@ with the corresponding `add` call:
 poetry add https://example.com/my-package-0.1.0.tar.gz
 ```
 
+## Dependency `extras`
+
+You can specify [PEP-508 Extras](https://www.python.org/dev/peps/pep-0508/#extras)
+for a dependency as shown here.
+
+```toml
+[tool.poetry.dependencies]
+gunicorn = { version = "^20.1", extras = ["gevent"] }
+```
+
+{{% note %}}
+These activate extra defined for the dependency, to configure an optional dependency
+for extras in your project refer to [`extras`]({{< relref "pyproject#extras" >}}).
+{{% /note %}}
+
 ## `source` dependencies
 
-To depend on a package from an [alternate repository](/docs/repositories/#install-dependencies-from-a-private-repository),
+To depend on a package from an [alternate repository]({{< relref "repositories/#install-dependencies-from-a-private-repository" >}}),
 you can use the `source` property:
 
 ```toml
@@ -173,9 +252,10 @@ with the corresponding `add` call:
 poetry add my-cool-package --source foo
 ```
 
-!!!note
-
-    In this example, we expect `foo` to be configured correctly. See [using a private repository](repositories.md#using-a-private-repository) for further information.
+{{% note %}}
+In this example, we expect `foo` to be configured correctly. See [using a private repository](repositories.md#using-a-private-repository)
+for further information.
+{{% /note %}}
 
 ## Python restricted dependencies
 

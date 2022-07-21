@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import io
 
+from pathlib import Path
 from typing import TYPE_CHECKING
 from typing import Any
 
@@ -15,18 +16,17 @@ from poetry.core.utils.helpers import normalize_version
 from requests import adapters
 from requests.exceptions import ConnectionError
 from requests.exceptions import HTTPError
-from requests.packages.urllib3 import util
 from requests_toolbelt import user_agent
 from requests_toolbelt.multipart import MultipartEncoder
 from requests_toolbelt.multipart import MultipartEncoderMonitor
+from urllib3 import util
 
 from poetry.__version__ import __version__
+from poetry.utils.constants import REQUESTS_TIMEOUT
 from poetry.utils.patterns import wheel_file_re
 
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from cleo.io.null_io import NullIO
 
     from poetry.poetry import Poetry
@@ -60,7 +60,8 @@ class Uploader:
 
     @property
     def user_agent(self) -> str:
-        return user_agent("poetry", __version__)
+        agent: str = user_agent("poetry", __version__)
+        return agent
 
     @property
     def adapter(self) -> adapters.HTTPAdapter:
@@ -113,20 +114,20 @@ class Uploader:
     def upload(
         self,
         url: str,
-        cert: Path | None = None,
+        cert: Path | bool = True,
         client_cert: Path | None = None,
         dry_run: bool = False,
+        skip_existing: bool = False,
     ) -> None:
         session = self.make_session()
 
-        if cert:
-            session.verify = str(cert)
+        session.verify = str(cert) if isinstance(cert, Path) else cert
 
         if client_cert:
             session.cert = str(client_cert)
 
         try:
-            self._upload(session, url, dry_run)
+            self._upload(session, url, dry_run, skip_existing)
         finally:
             session.close()
 
@@ -208,19 +209,24 @@ class Uploader:
         return data
 
     def _upload(
-        self, session: requests.Session, url: str, dry_run: bool | None = False
+        self,
+        session: requests.Session,
+        url: str,
+        dry_run: bool = False,
+        skip_existing: bool = False,
     ) -> None:
         for file in self.files:
             # TODO: Check existence
 
-            self._upload_file(session, url, file, dry_run)
+            self._upload_file(session, url, file, dry_run, skip_existing)
 
     def _upload_file(
         self,
         session: requests.Session,
         url: str,
         file: Path,
-        dry_run: bool | None = False,
+        dry_run: bool = False,
+        skip_existing: bool = False,
     ) -> None:
         from cleo.ui.progress_bar import ProgressBar
 
@@ -257,6 +263,7 @@ class Uploader:
                         data=monitor,
                         allow_redirects=False,
                         headers={"Content-Type": monitor.content_type},
+                        timeout=REQUESTS_TIMEOUT,
                     )
                 if resp is None or 200 <= resp.status_code < 300:
                     bar.set_format(
@@ -275,6 +282,12 @@ class Uploader:
                 elif resp.status_code == 400 and "was ever registered" in resp.text:
                     self._register(session, url)
                     resp.raise_for_status()
+                elif skip_existing and self._is_file_exists_error(resp):
+                    bar.set_format(
+                        f" - Uploading <c1>{file.name}</c1> <warning>File exists."
+                        " Skipping</>"
+                    )
+                    bar.display()
                 else:
                     resp.raise_for_status()
             except (requests.ConnectionError, requests.HTTPError) as e:
@@ -309,13 +322,14 @@ class Uploader:
             data=encoder,
             allow_redirects=False,
             headers={"Content-Type": encoder.content_type},
+            timeout=REQUESTS_TIMEOUT,
         )
 
         resp.raise_for_status()
 
         return resp
 
-    def _prepare_data(self, data: dict) -> list[tuple[str, str]]:
+    def _prepare_data(self, data: dict[str, Any]) -> list[tuple[str, str]]:
         data_to_send = []
         for key, value in data.items():
             if not isinstance(value, (list, tuple)):
@@ -334,3 +348,23 @@ class Uploader:
             return "sdist"
 
         raise ValueError("Unknown distribution format " + "".join(exts))
+
+    def _is_file_exists_error(self, response: requests.Response) -> bool:
+        # based on https://github.com/pypa/twine/blob/a6dd69c79f7b5abfb79022092a5d3776a499e31b/twine/commands/upload.py#L32  # noqa: E501
+        status = response.status_code
+        reason = response.reason.lower()
+        text = response.text.lower()
+        reason_and_text = reason + text
+
+        return (
+            # pypiserver (https://pypi.org/project/pypiserver)
+            status == 409
+            # PyPI / TestPyPI / GCP Artifact Registry
+            or (status == 400 and "already exist" in reason_and_text)
+            # Nexus Repository OSS (https://www.sonatype.com/nexus-repository-oss)
+            or (status == 400 and "updating asset" in reason_and_text)
+            # Artifactory (https://jfrog.com/artifactory/)
+            or (status == 403 and "overwrite artifact" in reason_and_text)
+            # Gitlab Enterprise Edition (https://about.gitlab.com)
+            or (status == 400 and "already been taken" in reason_and_text)
+        )

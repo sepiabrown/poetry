@@ -12,33 +12,34 @@ from pathlib import Path
 from subprocess import CalledProcessError
 from typing import TYPE_CHECKING
 from typing import Any
+from typing import cast
 
 from cleo.io.null_io import NullIO
 from poetry.core.packages.file_dependency import FileDependency
 from poetry.core.packages.utils.link import Link
-from poetry.core.packages.utils.utils import url_to_path
 from poetry.core.pyproject.toml import PyProjectTOML
 
 from poetry.installation.chef import Chef
 from poetry.installation.chooser import Chooser
+from poetry.installation.operations import Install
+from poetry.installation.operations import Uninstall
+from poetry.installation.operations import Update
 from poetry.utils._compat import decode
 from poetry.utils.authenticator import Authenticator
 from poetry.utils.env import EnvCommandError
 from poetry.utils.helpers import pluralize
-from poetry.utils.helpers import safe_rmtree
+from poetry.utils.helpers import remove_directory
 from poetry.utils.pip import pip_install
 
 
 if TYPE_CHECKING:
     from cleo.io.io import IO
+    from cleo.io.outputs.section_output import SectionOutput
+    from poetry.core.masonry.builders.builder import Builder
     from poetry.core.packages.package import Package
 
     from poetry.config.config import Config
-    from poetry.installation.operations import OperationTypes
-    from poetry.installation.operations.install import Install
     from poetry.installation.operations.operation import Operation
-    from poetry.installation.operations.uninstall import Uninstall
-    from poetry.installation.operations.update import Update
     from poetry.repositories import Pool
     from poetry.utils.env import Env
 
@@ -50,7 +51,7 @@ class Executor:
         pool: Pool,
         config: Config,
         io: IO,
-        parallel: bool = None,
+        parallel: bool | None = None,
     ) -> None:
         self._env = env
         self._io = io
@@ -59,7 +60,7 @@ class Executor:
         self._verbose = False
         self._authenticator = Authenticator(config, self._io)
         self._chef = Chef(config, self._env)
-        self._chooser = Chooser(pool, self._env)
+        self._chooser = Chooser(pool, self._env, config)
 
         if parallel is None:
             parallel = config.get("installer.parallel", True)
@@ -76,7 +77,7 @@ class Executor:
         self._executed_operations = 0
         self._executed = {"install": 0, "update": 0, "uninstall": 0}
         self._skipped = {"install": 0, "update": 0, "uninstall": 0}
-        self._sections = {}
+        self._sections: dict[int, SectionOutput] = {}
         self._lock = threading.Lock()
         self._shutdown = False
         self._hashes: dict[str, str] = {}
@@ -112,7 +113,7 @@ class Executor:
         return self
 
     def pip_install(
-        self, req: Path | Link, upgrade: bool = False, editable: bool = False
+        self, req: Path, upgrade: bool = False, editable: bool = False
     ) -> int:
         try:
             pip_install(req, self._env, upgrade=upgrade, editable=editable)
@@ -127,7 +128,7 @@ class Executor:
 
         return 0
 
-    def execute(self, operations: list[OperationTypes]) -> int:
+    def execute(self, operations: list[Operation]) -> int:
         self._total_operations = len(operations)
         for job_type in self._executed:
             self._executed[job_type] = 0
@@ -187,7 +188,7 @@ class Executor:
         # (it raises a NotImplementedError), so, in this case, we assume
         # that the system only has one CPU.
         try:
-            default_max_workers = os.cpu_count() + 4
+            default_max_workers = (os.cpu_count() or 1) + 4
         except NotImplementedError:
             default_max_workers = 5
 
@@ -195,7 +196,7 @@ class Executor:
             return default_max_workers
         return min(default_max_workers, desired_max_workers)
 
-    def _write(self, operation: OperationTypes, line: str) -> None:
+    def _write(self, operation: Operation, line: str) -> None:
         if not self.supports_fancy_output() or not self._should_write_operation(
             operation
         ):
@@ -213,7 +214,7 @@ class Executor:
             section.clear()
             section.write(line)
 
-    def _execute_operation(self, operation: OperationTypes) -> None:
+    def _execute_operation(self, operation: Operation) -> None:
         try:
             op_message = self.get_operation_message(operation)
             if self.supports_fancy_output():
@@ -290,7 +291,7 @@ class Executor:
                 with self._lock:
                     self._shutdown = True
 
-    def _do_execute_operation(self, operation: OperationTypes) -> int:
+    def _do_execute_operation(self, operation: Operation) -> int:
         method = operation.job_type
 
         operation_message = self.get_operation_message(operation)
@@ -313,7 +314,7 @@ class Executor:
 
             return 0
 
-        result = getattr(self, f"_execute_{method}")(operation)
+        result: int = getattr(self, f"_execute_{method}")(operation)
 
         if result != 0:
             return result
@@ -326,9 +327,7 @@ class Executor:
 
         return result
 
-    def _increment_operations_count(
-        self, operation: OperationTypes, executed: bool
-    ) -> None:
+    def _increment_operations_count(self, operation: Operation, executed: bool) -> None:
         with self._lock:
             if executed:
                 self._executed_operations += 1
@@ -353,7 +352,7 @@ class Executor:
 
     def get_operation_message(
         self,
-        operation: OperationTypes,
+        operation: Operation,
         done: bool = False,
         error: bool = False,
         warning: bool = False,
@@ -376,21 +375,21 @@ class Executor:
             source_operation_color += "_dark"
             package_color += "_dark"
 
-        if operation.job_type == "install":
+        if isinstance(operation, Install):
             return (
                 f"<{base_tag}>Installing"
                 f" <{package_color}>{operation.package.name}</{package_color}>"
                 f" (<{operation_color}>{operation.package.full_pretty_version}</>)</>"
             )
 
-        if operation.job_type == "uninstall":
+        if isinstance(operation, Uninstall):
             return (
                 f"<{base_tag}>Removing"
                 f" <{package_color}>{operation.package.name}</{package_color}>"
                 f" (<{operation_color}>{operation.package.full_pretty_version}</>)</>"
             )
 
-        if operation.job_type == "update":
+        if isinstance(operation, Update):
             return (
                 f"<{base_tag}>Updating"
                 f" <{package_color}>{operation.initial_package.name}</{package_color}> "
@@ -401,7 +400,7 @@ class Executor:
             )
         return ""
 
-    def _display_summary(self, operations: list[OperationTypes]) -> None:
+    def _display_summary(self, operations: list[Operation]) -> None:
         installs = 0
         updates = 0
         uninstalls = 0
@@ -463,9 +462,11 @@ class Executor:
         if package.source_type == "git":
             return self._install_git(operation)
 
+        archive: Path
         if package.source_type == "file":
             archive = self._prepare_file(operation)
         elif package.source_type == "url":
+            assert package.source_url is not None
             archive = self._download_link(operation, Link(package.source_url))
         else:
             archive = self._download(operation)
@@ -488,7 +489,7 @@ class Executor:
         if package.source_type == "git":
             src_dir = self._env.path / "src" / package.name
             if src_dir.exists():
-                safe_rmtree(str(src_dir))
+                remove_directory(src_dir, force=True)
 
         try:
             return self.run_pip("uninstall", package.name, "-y")
@@ -508,11 +509,10 @@ class Executor:
         )
         self._write(operation, message)
 
+        assert package.source_url is not None
         archive = Path(package.source_url)
         if not Path(package.source_url).is_absolute() and package.root_dir:
             archive = package.root_dir / archive
-
-        archive = self._chef.prepare(archive)
 
         return archive
 
@@ -528,6 +528,7 @@ class Executor:
         )
         self._write(operation, message)
 
+        assert package.source_url is not None
         if package.root_dir:
             req = package.root_dir / package.source_url
         else:
@@ -546,6 +547,7 @@ class Executor:
             )
             package_poetry = Factory().create_poetry(pyproject.file.path.parent)
 
+            builder: Builder
             if package.develop and not package_poetry.package.build_script:
                 from poetry.masonry.builders.editable import EditableBuilder
 
@@ -576,7 +578,7 @@ class Executor:
         return self.pip_install(req, upgrade=True)
 
     def _install_git(self, operation: Install | Update) -> int:
-        from poetry.core.vcs import Git
+        from poetry.vcs.git import Git
 
         package = operation.package
         operation_message = self.get_operation_message(operation)
@@ -586,24 +588,16 @@ class Executor:
         )
         self._write(operation, message)
 
-        src_dir = self._env.path / "src" / package.name
-        if src_dir.exists():
-            safe_rmtree(str(src_dir))
-
-        src_dir.parent.mkdir(exist_ok=True)
-
-        git = Git()
-        git.clone(package.source_url, src_dir)
-
-        reference = package.source_resolved_reference
-        if not reference:
-            reference = package.source_reference
-
-        git.checkout(reference, src_dir)
+        assert package.source_url is not None
+        source = Git.clone(
+            url=package.source_url,
+            source_root=self._env.path / "src",
+            revision=package.source_resolved_reference or package.source_reference,
+        )
 
         # Now we just need to install from the source directory
         original_url = package.source_url
-        package._source_url = str(src_dir)
+        package._source_url = str(source.path)
 
         status_code = self._install_directory(operation)
 
@@ -611,16 +605,17 @@ class Executor:
 
         return status_code
 
-    def _download(self, operation: Install | Update) -> Link:
+    def _download(self, operation: Install | Update) -> Path:
         link = self._chooser.choose_for(operation.package)
 
         return self._download_link(operation, link)
 
-    def _download_link(self, operation: Install | Update, link: Link) -> Link:
+    def _download_link(self, operation: Install | Update, link: Link) -> Path:
         package = operation.package
 
+        archive: Path | None
         archive = self._chef.get_cached_archive_for_link(link)
-        if archive is link:
+        if archive is None:
             # No cached distributions was found, so we download and prepare it
             try:
                 archive = self._download_archive(operation, link)
@@ -634,11 +629,6 @@ class Executor:
 
                 raise
 
-            # TODO: Check readability of the created archive
-
-            if not link.is_wheel:
-                archive = self._chef.prepare(archive)
-
         if package.files:
             archive_hash = self._validate_archive_hash(archive, package)
 
@@ -647,20 +637,14 @@ class Executor:
         return archive
 
     @staticmethod
-    def _validate_archive_hash(archive: Path | Link, package: Package) -> str:
-        archive_path = (
-            url_to_path(archive.url) if isinstance(archive, Link) else archive
-        )
-        file_dep = FileDependency(
-            package.name,
-            archive_path,
-        )
-        archive_hash = "sha256:" + file_dep.hash()
+    def _validate_archive_hash(archive: Path, package: Package) -> str:
+        file_dep = FileDependency(package.name, archive)
+        archive_hash: str = "sha256:" + file_dep.hash()
         known_hashes = {f["hash"] for f in package.files}
 
         if archive_hash not in known_hashes:
             raise RuntimeError(
-                f"Hash for {package} from archive {archive_path.name} not found in"
+                f"Hash for {package} from archive {archive.name} not found in"
                 f" known hashes (was: {archive_hash})"
             )
 
@@ -689,10 +673,11 @@ class Executor:
 
         if progress:
             with self._lock:
+                self._sections[id(operation)].clear()
                 progress.start()
 
         done = 0
-        archive = self._chef.get_cache_directory_for_link(link) / link.filename
+        archive: Path = self._chef.get_cache_directory_for_link(link) / link.filename
         archive.parent.mkdir(parents=True, exist_ok=True)
         with archive.open("wb") as f:
             for chunk in response.iter_content(chunk_size=4096):
@@ -716,7 +701,7 @@ class Executor:
     def _should_write_operation(self, operation: Operation) -> bool:
         return not operation.skipped or self._dry_run or self._verbose
 
-    def _save_url_reference(self, operation: OperationTypes) -> None:
+    def _save_url_reference(self, operation: Operation) -> None:
         """
         Create and store a PEP-610 `direct_url.json` file, if needed.
         """
@@ -725,11 +710,11 @@ class Executor:
 
         package = operation.package
 
-        if not package.source_url:
+        if not package.source_url or package.source_type == "legacy":
             # Since we are installing from our own distribution cache
             # pip will write a `direct_url.json` file pointing to the cache
             # distribution.
-            # That's not what we want so we remove the direct_url.json file,
+            # That's not what we want, so we remove the direct_url.json file,
             # if it exists.
             for (
                 direct_url_json
@@ -741,7 +726,7 @@ class Executor:
                     direct_url_json.unlink()
             return
 
-        url_reference = None
+        url_reference: dict[str, Any] | None = None
 
         if package.source_type == "git":
             url_reference = self._create_git_url_reference(package)
@@ -756,30 +741,18 @@ class Executor:
             for dist in self._env.site_packages.distributions(
                 name=package.name, writable_only=True
             ):
-                dist._path.joinpath("direct_url.json").write_text(
-                    json.dumps(url_reference),
-                    encoding="utf-8",
-                )
+                dist_path = cast(Path, dist._path)  # type: ignore[attr-defined]
+                url = dist_path / "direct_url.json"
+                url.write_text(json.dumps(url_reference), encoding="utf-8")
 
-                record = dist._path.joinpath("RECORD")
+                record = dist_path / "RECORD"
                 if record.exists():
-                    with record.open(mode="a", encoding="utf-8") as f:
+                    with record.open(mode="a", encoding="utf-8", newline="") as f:
                         writer = csv.writer(f)
-                        writer.writerow(
-                            [
-                                str(
-                                    dist._path.joinpath("direct_url.json").relative_to(
-                                        record.parent.parent
-                                    )
-                                ),
-                                "",
-                                "",
-                            ]
-                        )
+                        path = url.relative_to(record.parent.parent)
+                        writer.writerow([str(path), "", ""])
 
-    def _create_git_url_reference(
-        self, package: Package
-    ) -> dict[str, str | dict[str, str]]:
+    def _create_git_url_reference(self, package: Package) -> dict[str, Any]:
         reference = {
             "url": package.source_url,
             "vcs_info": {
@@ -791,9 +764,7 @@ class Executor:
 
         return reference
 
-    def _create_url_url_reference(
-        self, package: Package
-    ) -> dict[str, str | dict[str, str]]:
+    def _create_url_url_reference(self, package: Package) -> dict[str, Any]:
         archive_info = {}
 
         if package.name in self._hashes:
@@ -803,32 +774,26 @@ class Executor:
 
         return reference
 
-    def _create_file_url_reference(
-        self, package: Package
-    ) -> dict[str, str | dict[str, str]]:
+    def _create_file_url_reference(self, package: Package) -> dict[str, Any]:
         archive_info = {}
 
         if package.name in self._hashes:
             archive_info["hash"] = self._hashes[package.name]
 
-        reference = {
+        assert package.source_url is not None
+        return {
             "url": Path(package.source_url).as_uri(),
             "archive_info": archive_info,
         }
 
-        return reference
-
-    def _create_directory_url_reference(
-        self, package: Package
-    ) -> dict[str, str | dict[str, str]]:
+    def _create_directory_url_reference(self, package: Package) -> dict[str, Any]:
         dir_info = {}
 
         if package.develop:
             dir_info["editable"] = True
 
-        reference = {
+        assert package.source_url is not None
+        return {
             "url": Path(package.source_url).as_uri(),
             "dir_info": dir_info,
         }
-
-        return reference

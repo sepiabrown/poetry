@@ -54,7 +54,7 @@ class CustomInstalledRepository(InstalledRepository):
 
 
 class Locker(BaseLocker):
-    def __init__(self, lock_path: str | Path):
+    def __init__(self, lock_path: str | Path) -> None:
         self._lock = TOMLFile(Path(lock_path).joinpath("poetry.lock"))
         self._written_data = None
         self._locked = False
@@ -105,7 +105,7 @@ def package() -> ProjectPackage:
 
 @pytest.fixture()
 def repo() -> Repository:
-    return Repository()
+    return Repository("repo")
 
 
 @pytest.fixture()
@@ -312,7 +312,7 @@ def test_run_install_no_group(
     package.add_dependency(Factory.create_dependency("B", "~1.1"))
     package.add_dependency(Factory.create_dependency("C", "~1.2", groups=["dev"]))
 
-    installer.without_groups(["dev"])
+    installer.only_groups([])
     installer.run()
 
     installs = installer.installer.installs
@@ -832,6 +832,7 @@ def test_installer_with_pypi_repository(
     installer.run()
 
     expected = fixture("with-pypi-repository")
+
     assert not DeepDiff(expected, locker.written_data, ignore_order=True)
 
 

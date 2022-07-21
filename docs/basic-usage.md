@@ -58,7 +58,7 @@ build-backend = "poetry.core.masonry.api"
 Poetry assumes your package contains a package with the same name as `tool.poetry.name`.
 If this is not the case, populate `tool.poetry.packages` to specify your package or packages.
 
-See [Packages](/docs/pyproject#packages) for more information.
+See [Packages]({{< relref "pyproject#packages" >}}) for more information.
 
 ### Initialising a pre-existing project
 
@@ -131,15 +131,15 @@ in order for the subsequent commands to run from within the virtual environment.
 
 
 Alternatively, to avoid creating a new shell, you can manually activate the
-virtual environment by running `source {path_to_venv}/bin/activate` (`{path_to_venv}\Scripts\activate.bat` on Windows).
+virtual environment by running `source {path_to_venv}/bin/activate` (`{path_to_venv}\Scripts\activate.ps1` on Windows PowerShell).
 To get the path to your virtual environment run `poetry env info --path`.
 You can also combine these into a nice one-liner, `source $(poetry env info --path)/bin/activate`
 To deactivate this virtual environment simply use `deactivate`.
 
-|                   | POSIX Shell                                     | Windows                               | Exit/Deactivate |
+|                   | POSIX Shell                                     | Windows (PowerShell)                  | Exit/Deactivate |
 | ----------------- | ----------------------------------------------- | ------------------------------------- | --------------- |
 | New Shell         | `poetry shell`                                  | `poetry shell`                        | `exit`          |
-| Manual Activation | `source {path_to_venv}/bin/activate`            | `{path_to_venv}\Scripts\activate.bat` | `deactivate`    |
+| Manual Activation | `source {path_to_venv}/bin/activate`            | `{path_to_venv}\Scripts\activate.ps1` | `deactivate`    |
 | One-liner         | `source $(poetry env info --path)/bin/activate` |                                       | `deactivate`    |
 
 
@@ -215,7 +215,7 @@ For libraries it is not necessary to commit the lock file.
 
 ### Installing dependencies only
 
-The current project is installed in [editable](https://pip.pypa.io/en/stable/cli/pip_install/#install-editable) mode by default.
+The current project is installed in [editable](https://pip.pypa.io/en/stable/topics/local-project-installs/) mode by default.
 
 If you want to install the dependencies only, run the `install` command with the `--no-root` flag:
 

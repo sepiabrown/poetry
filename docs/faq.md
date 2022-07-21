@@ -14,12 +14,12 @@ menu:
 ### Why is the dependency resolution process slow?
 
 While the dependency resolver at the heart of Poetry is highly optimized and
-should be fast enough for most cases, sometimes, with some specific set of dependencies,
+should be fast enough for most cases, with certain sets of dependencies
 it can take time to find a valid solution.
 
 This is due to the fact that not all libraries on PyPI have properly declared their metadata
 and, as such, they are not available via the PyPI JSON API. At this point, Poetry has no choice
-but downloading the packages and inspect them to get the necessary information. This is an expensive
+but to download the packages and inspect them to get the necessary information. This is an expensive
 operation, both in bandwidth and time, which is why it seems this is a long process.
 
 At the moment there is no way around it.
@@ -104,5 +104,13 @@ The current project's Python requirement (>=3.7.0,<4.0.0) is not compatible with
 ```
 
 Usually you will want to match the Python requirement of your project with the upper bound of the failing dependency.
-Alternative you can tell Poetry to install this dependency [only for a specific range of Python versions](/docs/dependency-specification/#multiple-constraints-dependencies),
+Alternative you can tell Poetry to install this dependency [only for a specific range of Python versions]({{< relref "dependency-specification#multiple-constraints-dependencies" >}}),
 if you know that it's not needed in all versions.
+
+
+### Why does Poetry enforce PEP 440 versions?
+
+This is done so to be compliant with the broader Python ecosystem.
+
+For example, if Poetry builds a distribution for a project that uses a version that is not valid according to
+[PEP 440](https://peps.python.org/pep-0440), third party tools will be unable to parse the version correctly.
