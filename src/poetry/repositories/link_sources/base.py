@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import logging
 import re
+import platform
+import sys
 
 from abc import abstractmethod
 from typing import TYPE_CHECKING
@@ -71,6 +73,16 @@ class LinkSource:
     def link_package_data(cls, link: Link) -> Package | None:
         name, version_string, version = None, None, None
         m = wheel_file_re.match(link.filename) or sdist_file_re.match(link.filename)
+
+        os_file_re = re.compile(r"any|linux")
+        if not bool(os_file_re.search(m.group("plat"))) and platform.system().lower() == "linux":
+            print("Doesn't Match OS")
+            return None
+        print("Match OS")
+        if "cp"+str(sys.version_info[0])+str(sys.version_info[1]) != m.group("pyver") :
+            print("Doesn't Match Python version")
+            return None
+        print("Match Python version")
 
         if m:
             name = canonicalize_name(m.group("name"))
